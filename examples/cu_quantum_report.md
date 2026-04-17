@@ -33,19 +33,19 @@ At University of Colorado Anschutz Medical Campus, current work in Quantum is sh
 - ORCID: https://orcid.org/0000-0001-8713-9213
 - Summary: Casey S. Greene is a recurring contributor in Quantum. Across 1 high-signal works, their publications focus on the themes listed below.
 - Key topics: Space exploration, Computer science, NASA Deep Space Network, Space (punctuation), Spaceflight
-- Evidence titles:
-  - Biological research and self-driving labs in deep space supported by artificial intelligence
+- Evidence works:
+  - [Biological research and self-driving labs in deep space supported by artificial intelligence](https://openalex.org/W4360612437)
 
 ### Carissa A Sherman
 - ORCID: N/A
 - Summary: Carissa A Sherman is a recurring contributor in Quantum. Across 1 high-signal works, their publications focus on the themes listed below.
 - Key topics: Eugenics, Biology, Genetics, Genomics, Indigenous
-- Evidence titles:
-  - Echoes of eugenics: confronting its effects in indigenous genomics
+- Evidence works:
+  - [Echoes of eugenics: confronting its effects in indigenous genomics](https://openalex.org/W4413114300)
 
 ### Katrina G. Claw
 - ORCID: https://orcid.org/0000-0003-2239-5018
 - Summary: Katrina G. Claw is a recurring contributor in Quantum. Across 1 high-signal works, their publications focus on the themes listed below.
 - Key topics: Eugenics, Biology, Genetics, Genomics, Indigenous
-- Evidence titles:
-  - Echoes of eugenics: confronting its effects in indigenous genomics
+- Evidence works:
+  - [Echoes of eugenics: confronting its effects in indigenous genomics](https://openalex.org/W4413114300)

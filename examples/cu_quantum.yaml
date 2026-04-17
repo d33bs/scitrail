@@ -1,0 +1,9 @@
+institution: CU Anschutz
+department: Department of Biomedical Informatics
+topic: Quantum
+max_people: 5
+works_per_person: 8
+lookback_years: 5
+openalex_email: researcher@example.org
+llm:
+  enabled: false

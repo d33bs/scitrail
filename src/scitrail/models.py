@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pydantic import BaseModel, Field, computed_field
+from pydantic import BaseModel, Field, computed_field, model_validator
 
 
 class LLMSettings(BaseModel):
@@ -30,13 +30,48 @@ class ReportConfig(BaseModel):
 
     institution: str
     department: str | None = None
-    topic: str
+    departments: list[str] | None = None
+    topic: str | None = None
+    topics: list[str] | None = None
     max_people: int = Field(default=5, ge=1, le=25)
     works_per_person: int = Field(default=8, ge=1, le=50)
     lookback_years: int = Field(default=5, ge=1, le=30)
     openalex_email: str | None = None
     openalex_api_key: str | None = None
     llm: LLMSettings = Field(default_factory=LLMSettings)
+
+    @model_validator(mode="after")
+    def validate_topic_inputs(self) -> "ReportConfig":
+        """Ensure at least one topic is configured."""
+
+        if not self.active_topics:
+            msg = "Provide at least one topic via `topic` or `topics`."
+            raise ValueError(msg)
+        return self
+
+    @computed_field
+    @property
+    def active_topics(self) -> list[str]:
+        """Return normalized list of topics from single or multi-value inputs."""
+
+        values: list[str] = []
+        if self.topic:
+            values.append(self.topic)
+        if self.topics:
+            values.extend(self.topics)
+        return _normalized_unique(values)
+
+    @computed_field
+    @property
+    def active_departments(self) -> list[str]:
+        """Return normalized list of departments from single or multi-value inputs."""
+
+        values: list[str] = []
+        if self.department:
+            values.append(self.department)
+        if self.departments:
+            values.extend(self.departments)
+        return _normalized_unique(values)
 
 
 class InstitutionRecord(BaseModel):
@@ -56,6 +91,7 @@ class WorkSnippet(BaseModel):
     doi: str | None = None
     cited_by_count: int = 0
     concepts: list[str] = Field(default_factory=list)
+    topic_signals: list[str] = Field(default_factory=list)
     abstract: str | None = None
 
 
@@ -75,6 +111,7 @@ class EvidenceWork(BaseModel):
     title: str
     work_id: str
     doi: str | None = None
+    topic_signals: list[str] = Field(default_factory=list)
 
 
 class PersonSummary(BaseModel):
@@ -102,3 +139,20 @@ class ReportData(BaseModel):
     institution: InstitutionRecord
     top_voices: list[PersonSummary]
     executive_summary: ExecutiveSummary
+
+
+def _normalized_unique(values: list[str]) -> list[str]:
+    """Normalize strings and return a stable unique list."""
+
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        stripped = value.strip()
+        if not stripped:
+            continue
+        lowered = stripped.casefold()
+        if lowered in seen:
+            continue
+        seen.add(lowered)
+        normalized.append(stripped)
+    return normalized

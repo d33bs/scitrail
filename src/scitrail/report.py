@@ -33,13 +33,17 @@ def render_markdown(report: ReportData) -> str:
     """Render markdown output for the analyzed top-voices report."""
 
     config = report.config
+    topic_label = ", ".join(config.active_topics)
     lines: list[str] = [
-        f"# SciTrail Report: {config.topic}",
+        f"# SciTrail Report: {topic_label}",
         "",
         f"Institution: **{report.institution.display_name}**",
     ]
-    if config.department:
-        lines.append(f"Department: **{config.department}**")
+    if config.active_departments:
+        if len(config.active_departments) == 1:
+            lines.append(f"Department: **{config.active_departments[0]}**")
+        else:
+            lines.append(f"Departments: **{', '.join(config.active_departments)}**")
     lines.extend(
         [
             f"Top voices analyzed: **{len(report.top_voices)}**",
@@ -53,12 +57,6 @@ def render_markdown(report: ReportData) -> str:
     )
     lines.extend(
         [f"- {trend}" for trend in report.executive_summary.trends] or ["- None"]
-    )
-    lines.append("")
-    lines.append("### Open Questions")
-    lines.extend(
-        [f"- {question}" for question in report.executive_summary.open_questions]
-        or ["- None"]
     )
     lines.append("")
 
@@ -95,7 +93,7 @@ def render_markdown(report: ReportData) -> str:
                     (
                         f"  - [{work.title}]("
                         f"{_doi_url(work.doi) if work.doi else _work_url(work.work_id)}"
-                        ")"
+                        f"){_topic_signal_suffix(work.topic_signals)}"
                     )
                     for work in voice.evidence_works
                 ]
@@ -105,3 +103,11 @@ def render_markdown(report: ReportData) -> str:
         lines.append("")
 
     return "\n".join(lines)
+
+
+def _topic_signal_suffix(topic_signals: list[str]) -> str:
+    """Render a compact topic-signal suffix for evidence bullets."""
+
+    if not topic_signals:
+        return ""
+    return f" (topic signal: {', '.join(topic_signals[:3])})"

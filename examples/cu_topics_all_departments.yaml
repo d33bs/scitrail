@@ -1,8 +1,7 @@
 institution: CU Anschutz
-departments:
-  - Department of Biomedical Informatics
 topics:
   - Quantum
+  - Artificial intelligence
 max_people: 5
 works_per_person: 8
 lookback_years: 5

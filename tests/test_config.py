@@ -14,6 +14,8 @@ def test_load_config(sample_config_path: Path) -> None:
     assert config.institution == "CU Anschutz"
     assert config.department == "Department of Biomedical Informatics"
     assert config.topic == "Quantum"
+    assert config.active_departments == ["Department of Biomedical Informatics"]
+    assert config.active_topics == ["Quantum"]
     assert config.max_people == 5
     assert config.works_per_person == 3
     assert config.llm.enabled is False
@@ -31,3 +33,23 @@ def test_load_config_invalid_root(tmp_path: Path) -> None:
         assert "root must be a mapping" in str(error)
     else:
         raise AssertionError("Expected ValueError for invalid YAML root")
+
+
+def test_load_config_topics_list_only(tmp_path: Path) -> None:
+    """Config should allow topics list without single topic key."""
+
+    path = tmp_path / "topics.yaml"
+    path.write_text(
+        "\n".join(
+            [
+                "institution: CU Anschutz",
+                "topics:",
+                "  - Quantum",
+                "  - Artificial intelligence",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    config = load_config(path)
+    assert config.active_topics == ["Quantum", "Artificial intelligence"]

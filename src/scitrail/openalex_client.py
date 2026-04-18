@@ -2,13 +2,28 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterable
+from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from pyalex import Institutions, Works
 from pyalex import config as pyalex_config
 
 from scitrail.models import InstitutionRecord, ReportConfig, VoiceCandidate, WorkSnippet
+
+MIN_TOPIC_TERM_LENGTH = 3
+
+
+@dataclass(frozen=True)
+class VoiceExtractionOptions:
+    """Options controlling top-voice extraction behavior."""
+
+    departments: list[str] | None
+    topics: list[str]
+    max_people: int
+    works_per_person: int
+    strict_topic_match: bool = True
 
 
 class OpenAlexClient:
@@ -67,7 +82,99 @@ class OpenAlexClient:
         return query.sort(cited_by_count="desc").get(per_page=max_records)
 
 
-def _build_work_snippet(work: dict[str, object]) -> WorkSnippet:
+def _topic_terms(topics: list[str]) -> list[str]:
+    """Split a topic string into lowercase terms for relevance checks."""
+    terms: list[str] = []
+    for topic in topics:
+        terms.extend(re.findall(r"[a-z0-9]+", topic.casefold()))
+    unique_terms: list[str] = []
+    seen: set[str] = set()
+    for term in terms:
+        if len(term) < MIN_TOPIC_TERM_LENGTH:
+            continue
+        if term in seen:
+            continue
+        seen.add(term)
+        unique_terms.append(term)
+    return unique_terms
+
+
+def _append_term_matches(
+    *,
+    signals: list[str],
+    source_label: str,
+    text: str,
+    topic_terms: list[str],
+) -> None:
+    """Append matches from topic terms found in a given text."""
+
+    text_lower = text.casefold()
+    for term in topic_terms:
+        if term in text_lower:
+            signals.append(f"{source_label}:{term}")
+
+
+def _append_concept_matches(
+    *,
+    signals: list[str],
+    concepts: list[object],
+    topic_terms: list[str],
+) -> None:
+    """Append concept-level matches for topic terms."""
+
+    for concept in concepts:
+        if not isinstance(concept, dict):
+            continue
+        concept_name = str(concept.get("display_name", ""))
+        if not concept_name:
+            continue
+        concept_name_lower = concept_name.casefold()
+        for term in topic_terms:
+            if term in concept_name_lower:
+                signals.append(f"concept:{concept_name}")
+
+
+def _extract_topic_signals(
+    work: dict[str, object], topic_terms: list[str]
+) -> list[str]:
+    """Extract simple topic-match evidence from title/concepts/abstract."""
+
+    if not topic_terms:
+        return []
+
+    signals: list[str] = []
+    title = str(work.get("display_name", ""))
+    _append_term_matches(
+        signals=signals,
+        source_label="title",
+        text=title,
+        topic_terms=topic_terms,
+    )
+
+    concepts = work.get("concepts", [])
+    if isinstance(concepts, list):
+        _append_concept_matches(
+            signals=signals,
+            concepts=concepts,
+            topic_terms=topic_terms,
+        )
+
+    abstract = work.get("abstract")
+    if isinstance(abstract, str):
+        _append_term_matches(
+            signals=signals,
+            source_label="abstract",
+            text=abstract,
+            topic_terms=topic_terms,
+        )
+
+    deduped = list(dict.fromkeys(signals))
+    return deduped[:8]
+
+
+def _build_work_snippet(
+    work: dict[str, object], topic_signals: list[str]
+) -> WorkSnippet:
     """Build a typed work snippet from a raw OpenAlex work object."""
 
     return WorkSnippet(
@@ -83,6 +190,7 @@ def _build_work_snippet(work: dict[str, object]) -> WorkSnippet:
             for concept in work.get("concepts", [])
             if isinstance(concept, dict) and concept.get("display_name")
         ],
+        topic_signals=topic_signals,
         abstract=(
             work.get("abstract") if isinstance(work.get("abstract"), str) else None
         ),
@@ -110,17 +218,17 @@ def _authorship_matches_institution(
     )
 
 
-def _authorship_matches_department(
+def _authorship_matches_departments(
     authorship: dict[str, object],
     *,
-    department: str | None,
+    departments: list[str] | None,
 ) -> bool:
     """Check if authorship affiliation metadata contains the department text."""
 
-    if not department:
+    if not departments:
         return True
 
-    department_lower = department.casefold()
+    department_terms = [department.casefold() for department in departments]
     values: list[str] = []
 
     raw_affiliation_string = authorship.get("raw_affiliation_string")
@@ -141,7 +249,9 @@ def _authorship_matches_department(
             if isinstance(inst, dict) and inst.get("display_name")
         )
 
-    return any(department_lower in value.casefold() for value in values)
+    return any(
+        term in value.casefold() for term in department_terms for value in values
+    )
 
 
 def _upsert_candidate(
@@ -181,21 +291,24 @@ def extract_top_voices(
     *,
     works: Iterable[dict[str, object]],
     institution: InstitutionRecord,
-    department: str | None,
-    max_people: int,
-    works_per_person: int,
+    options: VoiceExtractionOptions,
 ) -> list[VoiceCandidate]:
     """Extract and rank top voices from works by institutional authorship evidence."""
 
     candidates: dict[str, VoiceCandidate] = {}
     inst_id_short = institution.id.rsplit("/", maxsplit=1)[-1]
+    topic_terms = _topic_terms(options.topics)
 
     for work in works:
         authorships = work.get("authorships")
         if not isinstance(authorships, list):
             continue
 
-        work_item = _build_work_snippet(work)
+        topic_signals = _extract_topic_signals(work, topic_terms)
+        if options.strict_topic_match and topic_terms and not topic_signals:
+            continue
+
+        work_item = _build_work_snippet(work, topic_signals=topic_signals)
 
         for authorship in authorships:
             if not isinstance(authorship, dict):
@@ -206,9 +319,9 @@ def extract_top_voices(
                 inst_id_short=inst_id_short,
             ):
                 continue
-            if not _authorship_matches_department(
+            if not _authorship_matches_departments(
                 authorship=authorship,
-                department=department,
+                departments=options.departments,
             ):
                 continue
 
@@ -216,7 +329,7 @@ def extract_top_voices(
                 candidates=candidates,
                 authorship=authorship,
                 work_item=work_item,
-                works_per_person=works_per_person,
+                works_per_person=options.works_per_person,
             )
 
     sorted_candidates = sorted(
@@ -227,4 +340,4 @@ def extract_top_voices(
         ),
         reverse=True,
     )
-    return sorted_candidates[:max_people]
+    return sorted_candidates[: options.max_people]

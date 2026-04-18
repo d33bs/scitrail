@@ -13,6 +13,7 @@ from scitrail.models import (
     VoiceCandidate,
     WorkSnippet,
 )
+from scitrail.openalex_client import VoiceExtractionOptions
 from scitrail.pipeline import generate_report_file, generate_report_markdown
 
 
@@ -82,9 +83,13 @@ def test_generate_report_markdown(monkeypatch, sample_config_path: Path) -> None
     observed_department: dict[str, str | None] = {"value": None}
 
     def fake_extract_top_voices(
-        **kwargs: str | InstitutionRecord | int | list[dict[str, object]],
+        **kwargs: object,
     ) -> list[VoiceCandidate]:
-        observed_department["value"] = kwargs["department"]
+        options = kwargs["options"]
+        assert isinstance(options, VoiceExtractionOptions)
+        observed_department["value"] = (
+            options.departments[0] if options.departments else None
+        )
         return [
             VoiceCandidate(
                 author_id="A1",
@@ -106,6 +111,7 @@ def test_generate_report_markdown(monkeypatch, sample_config_path: Path) -> None
     assert "Department: **Department of Biomedical Informatics**" in markdown
     assert "Alice" in markdown
     assert "state" in markdown
+    assert "### Open Questions" not in markdown
 
 
 def test_generate_report_file(

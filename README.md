@@ -5,7 +5,7 @@ including ORCID identifiers and a concise state-of-the-art executive summary.
 
 The workflow is:
 
-1. Read a YAML config (`institution`, optional `department`, `topic`, and simple knobs).
+1. Read a YAML config (`institution`, optional `department`/`departments`, `topic`/`topics`, and simple knobs).
 1. Resolve the institution in OpenAlex (with ROR when available).
 1. Scan topic-relevant literature in that institution.
 1. Rank the top voices (configurable count).
@@ -28,8 +28,11 @@ uv sync --extra local-llm
 
 ```yaml
 institution: CU Anschutz
-department: Department of Biomedical Informatics
-topic: Quantum
+departments:
+  - Department of Biomedical Informatics
+topics:
+  - Quantum
+  - Artificial intelligence
 max_people: 5
 works_per_person: 8
 lookback_years: 5
@@ -51,6 +54,13 @@ Preview markdown in terminal:
 
 ```bash
 uv run scitrail preview --config examples/cu_quantum.yaml
+```
+
+Compare department-scoped vs all-departments runs:
+
+```bash
+uv run scitrail generate --config examples/cu_topics_dbmi.yaml --output examples/cu_topics_dbmi_report.md
+uv run scitrail generate --config examples/cu_topics_all_departments.yaml --output examples/cu_topics_all_departments_report.md
 ```
 
 Run the built-in example end-to-end and write `examples/cu_quantum_report.md`:

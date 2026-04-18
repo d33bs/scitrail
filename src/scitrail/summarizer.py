@@ -63,7 +63,12 @@ class FallbackSummarizer(BaseSummarizer):
 
         key_topics = [name for name, _ in concept_counts.most_common(5)]
         evidence_works = [
-            EvidenceWork(title=work.title, work_id=work.id, doi=work.doi)
+            EvidenceWork(
+                title=work.title,
+                work_id=work.id,
+                doi=work.doi,
+                topic_signals=work.topic_signals,
+            )
             for work in candidate.works[:5]
         ]
         state_of_work = (
@@ -174,7 +179,12 @@ class LocalInstructorSummarizer(FallbackSummarizer):
             state_of_work=response.state_of_work,
             key_topics=response.key_topics,
             evidence_works=[
-                EvidenceWork(title=work.title, work_id=work.id, doi=work.doi)
+                EvidenceWork(
+                    title=work.title,
+                    work_id=work.id,
+                    doi=work.doi,
+                    topic_signals=work.topic_signals,
+                )
                 for work in candidate.works[:5]
             ],
         )

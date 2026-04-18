@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from scitrail.models import InstitutionRecord
-from scitrail.openalex_client import extract_top_voices
+from scitrail.openalex_client import VoiceExtractionOptions, extract_top_voices
 
 INSTITUTION = InstitutionRecord(
     id="https://openalex.org/I123",
@@ -87,9 +87,12 @@ def test_extract_top_voices_filters_and_ranks() -> None:
     voices = extract_top_voices(
         works=works,
         institution=INSTITUTION,
-        department=None,
-        max_people=2,
-        works_per_person=5,
+        options=VoiceExtractionOptions(
+            departments=None,
+            topics=["Quantum"],
+            max_people=2,
+            works_per_person=5,
+        ),
     )
 
     assert len(voices) == 2
@@ -146,9 +149,12 @@ def test_extract_top_voices_department_filter() -> None:
     voices = extract_top_voices(
         works=works,
         institution=INSTITUTION,
-        department="Biomedical Informatics",
-        max_people=5,
-        works_per_person=5,
+        options=VoiceExtractionOptions(
+            departments=["Biomedical Informatics"],
+            topics=["Quantum"],
+            max_people=5,
+            works_per_person=5,
+        ),
     )
 
     assert len(voices) == 1

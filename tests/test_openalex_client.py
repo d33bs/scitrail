@@ -5,7 +5,6 @@ from __future__ import annotations
 from scitrail.models import InstitutionRecord
 from scitrail.openalex_client import extract_top_voices
 
-
 INSTITUTION = InstitutionRecord(
     id="https://openalex.org/I123",
     display_name="CU Anschutz",

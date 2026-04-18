@@ -34,7 +34,11 @@ def test_render_markdown_sections() -> None:
                 state_of_work="Focuses on quantum optimization.",
                 key_topics=["Quantum", "Optimization"],
                 evidence_works=[
-                    EvidenceWork(title="Paper A", work_id="https://openalex.org/W1")
+                    EvidenceWork(
+                        title="Paper A",
+                        work_id="https://openalex.org/W1",
+                        doi="10.1000/test-doi",
+                    )
                 ],
             )
         ],
@@ -53,4 +57,4 @@ def test_render_markdown_sections() -> None:
     assert "## Top Voices" in markdown
     assert "Alice" in markdown
     assert "https://orcid.org/0000-0001" in markdown
-    assert "[Paper A](https://openalex.org/W1)" in markdown
+    assert "[Paper A](https://doi.org/10.1000/test-doi)" in markdown

@@ -53,6 +53,7 @@ class WorkSnippet(BaseModel):
     id: str
     title: str
     publication_year: int | None = None
+    doi: str | None = None
     cited_by_count: int = 0
     concepts: list[str] = Field(default_factory=list)
     abstract: str | None = None
@@ -73,6 +74,7 @@ class EvidenceWork(BaseModel):
 
     title: str
     work_id: str
+    doi: str | None = None
 
 
 class PersonSummary(BaseModel):

@@ -76,6 +76,7 @@ def _build_work_snippet(work: dict[str, object]) -> WorkSnippet:
         publication_year=work.get("publication_year")
         if isinstance(work.get("publication_year"), int)
         else None,
+        doi=work.get("doi") if isinstance(work.get("doi"), str) else None,
         cited_by_count=int(work.get("cited_by_count", 0) or 0),
         concepts=[
             str(concept.get("display_name"))

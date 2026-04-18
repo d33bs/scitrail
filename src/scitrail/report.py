@@ -20,6 +20,15 @@ def _work_url(work_id: str) -> str:
     return work_id
 
 
+def _doi_url(doi: str) -> str:
+    doi = doi.strip()
+    if doi.startswith("http://") or doi.startswith("https://"):
+        return doi
+    if doi.startswith("doi:"):
+        doi = doi.split("doi:", maxsplit=1)[1].strip()
+    return f"https://doi.org/{doi}"
+
+
 def render_markdown(report: ReportData) -> str:
     """Render markdown output for the analyzed top-voices report."""
 
@@ -83,7 +92,11 @@ def render_markdown(report: ReportData) -> str:
         if voice.evidence_works:
             lines.extend(
                 [
-                    f"  - [{work.title}]({_work_url(work.work_id)})"
+                    (
+                        f"  - [{work.title}]("
+                        f"{_doi_url(work.doi) if work.doi else _work_url(work.work_id)}"
+                        ")"
+                    )
                     for work in voice.evidence_works
                 ]
             )

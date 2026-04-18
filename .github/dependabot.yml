@@ -12,8 +12,12 @@ updates:
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      # Check for updates to GitHub Actions every week
-      interval: "weekly"
+      # Check for updates to GitHub Actions every month
+      interval: "monthly"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
 
   # Perform checks and updates for python uv environment.
   # This depends on changes to dependabot via:
@@ -23,5 +27,9 @@ updates:
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
-      # Check for updates to uv environment files every week
-      interval: "weekly"
+      # Check for updates to uv environment files every month
+      interval: "monthly"
+    groups:
+      python-dependencies:
+        patterns:
+          - "*"

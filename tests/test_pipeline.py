@@ -81,7 +81,9 @@ def test_generate_report_markdown(monkeypatch, sample_config_path: Path) -> None
 
     observed_department: dict[str, str | None] = {"value": None}
 
-    def fake_extract_top_voices(**kwargs):
+    def fake_extract_top_voices(
+        **kwargs: str | InstitutionRecord | int | list[dict[str, object]],
+    ) -> list[VoiceCandidate]:
         observed_department["value"] = kwargs["department"]
         return [
             VoiceCandidate(

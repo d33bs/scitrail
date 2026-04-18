@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from scitrail.config import load_config
+from scitrail.disambiguation import disambiguate_candidates
 from scitrail.models import ReportData
 from scitrail.openalex_client import (
     OpenAlexClient,
@@ -54,7 +55,14 @@ def generate_report_markdown(config_path: str | Path) -> str:
             topics=config.active_topics,
             max_people=config.max_people,
             works_per_person=config.works_per_person,
+            require_orcid=config.require_orcid,
+            require_all_topics=config.require_all_topics,
         ),
+    )
+    voices = disambiguate_candidates(
+        voices,
+        llm_settings=config.llm,
+        enabled=config.disambiguate_names_with_llm,
     )
 
     summarizer = build_summarizer(config.llm)

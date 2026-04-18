@@ -36,6 +36,9 @@ class ReportConfig(BaseModel):
     max_people: int = Field(default=5, ge=1, le=25)
     works_per_person: int = Field(default=8, ge=1, le=50)
     lookback_years: int = Field(default=5, ge=1, le=30)
+    require_orcid: bool = True
+    disambiguate_names_with_llm: bool = True
+    require_all_topics: bool = True
     openalex_email: str | None = None
     openalex_api_key: str | None = None
     llm: LLMSettings = Field(default_factory=LLMSettings)
@@ -101,6 +104,7 @@ class VoiceCandidate(BaseModel):
     author_id: str
     display_name: str
     orcid: str | None = None
+    alias_names: list[str] = Field(default_factory=list)
     works: list[WorkSnippet] = Field(default_factory=list)
     total_citations: int = 0
 

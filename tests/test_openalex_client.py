@@ -92,6 +92,7 @@ def test_extract_top_voices_filters_and_ranks() -> None:
             topics=["Quantum"],
             max_people=2,
             works_per_person=5,
+            require_orcid=False,
         ),
     )
 
@@ -159,3 +160,132 @@ def test_extract_top_voices_department_filter() -> None:
 
     assert len(voices) == 1
     assert voices[0].display_name == "Alice"
+
+
+def test_extract_top_voices_requires_orcid_and_deduplicates() -> None:
+    """Should require ORCID and merge records sharing the same ORCID."""
+
+    works = [
+        {
+            "id": "https://openalex.org/W1",
+            "display_name": "Quantum methods",
+            "cited_by_count": 10,
+            "concepts": [{"display_name": "Quantum computing"}],
+            "authorships": [
+                {
+                    "author": {
+                        "id": "https://openalex.org/A1",
+                        "display_name": "Alice Smith",
+                        "orcid": "https://orcid.org/0000-0001",
+                    },
+                    "institutions": [
+                        {"id": "https://openalex.org/I123", "ror": "04x9a0q46"}
+                    ],
+                }
+            ],
+        },
+        {
+            "id": "https://openalex.org/W2",
+            "display_name": "Quantum systems",
+            "cited_by_count": 20,
+            "concepts": [{"display_name": "Quantum"}],
+            "authorships": [
+                {
+                    "author": {
+                        "id": "https://openalex.org/A2",
+                        "display_name": "A. Smith",
+                        "orcid": "https://orcid.org/0000-0001",
+                    },
+                    "institutions": [
+                        {"id": "https://openalex.org/I123", "ror": "04x9a0q46"}
+                    ],
+                },
+                {
+                    "author": {
+                        "id": "https://openalex.org/A3",
+                        "display_name": "No Orcid Person",
+                        "orcid": None,
+                    },
+                    "institutions": [
+                        {"id": "https://openalex.org/I123", "ror": "04x9a0q46"}
+                    ],
+                },
+            ],
+        },
+    ]
+
+    voices = extract_top_voices(
+        works=works,
+        institution=INSTITUTION,
+        options=VoiceExtractionOptions(
+            departments=None,
+            topics=["Quantum"],
+            max_people=5,
+            works_per_person=5,
+            require_orcid=True,
+        ),
+    )
+
+    assert len(voices) == 1
+    assert voices[0].orcid == "https://orcid.org/0000-0001"
+    assert len(voices[0].works) == 2
+
+
+def test_extract_top_voices_multi_topic_and_matching() -> None:
+    """Works should match all configured topics when require_all_topics is true."""
+
+    works = [
+        {
+            "id": "https://openalex.org/W1",
+            "display_name": "Quantum advances",
+            "cited_by_count": 5,
+            "concepts": [{"display_name": "Quantum computing"}],
+            "authorships": [
+                {
+                    "author": {
+                        "id": "https://openalex.org/A1",
+                        "display_name": "Alice",
+                        "orcid": "https://orcid.org/0000-0001",
+                    },
+                    "institutions": [
+                        {"id": "https://openalex.org/I123", "ror": "04x9a0q46"}
+                    ],
+                }
+            ],
+        },
+        {
+            "id": "https://openalex.org/W2",
+            "display_name": "Quantum bioinformatics methods",
+            "cited_by_count": 9,
+            "concepts": [{"display_name": "Bioinformatics"}],
+            "authorships": [
+                {
+                    "author": {
+                        "id": "https://openalex.org/A1",
+                        "display_name": "Alice",
+                        "orcid": "https://orcid.org/0000-0001",
+                    },
+                    "institutions": [
+                        {"id": "https://openalex.org/I123", "ror": "04x9a0q46"}
+                    ],
+                }
+            ],
+        },
+    ]
+
+    voices = extract_top_voices(
+        works=works,
+        institution=INSTITUTION,
+        options=VoiceExtractionOptions(
+            departments=None,
+            topics=["Quantum", "Bioinformatics"],
+            max_people=5,
+            works_per_person=5,
+            require_orcid=True,
+            require_all_topics=True,
+        ),
+    )
+
+    assert len(voices) == 1
+    assert len(voices[0].works) == 1
+    assert voices[0].works[0].id == "https://openalex.org/W2"

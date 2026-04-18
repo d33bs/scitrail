@@ -23,6 +23,8 @@ class VoiceExtractionOptions:
     topics: list[str]
     max_people: int
     works_per_person: int
+    require_orcid: bool = True
+    require_all_topics: bool = True
     strict_topic_match: bool = True
 
 
@@ -82,21 +84,23 @@ class OpenAlexClient:
         return query.sort(cited_by_count="desc").get(per_page=max_records)
 
 
-def _topic_terms(topics: list[str]) -> list[str]:
-    """Split a topic string into lowercase terms for relevance checks."""
-    terms: list[str] = []
+def _topic_term_groups(topics: list[str]) -> list[list[str]]:
+    """Build per-topic term groups for AND/OR topic matching."""
+
+    groups: list[list[str]] = []
     for topic in topics:
-        terms.extend(re.findall(r"[a-z0-9]+", topic.casefold()))
-    unique_terms: list[str] = []
-    seen: set[str] = set()
-    for term in terms:
-        if len(term) < MIN_TOPIC_TERM_LENGTH:
-            continue
-        if term in seen:
-            continue
-        seen.add(term)
-        unique_terms.append(term)
-    return unique_terms
+        seen: set[str] = set()
+        terms: list[str] = []
+        for term in re.findall(r"[a-z0-9]+", topic.casefold()):
+            if len(term) < MIN_TOPIC_TERM_LENGTH:
+                continue
+            if term in seen:
+                continue
+            seen.add(term)
+            terms.append(term)
+        if terms:
+            groups.append(terms)
+    return groups
 
 
 def _append_term_matches(
@@ -105,13 +109,16 @@ def _append_term_matches(
     source_label: str,
     text: str,
     topic_terms: list[str],
-) -> None:
+) -> bool:
     """Append matches from topic terms found in a given text."""
 
+    matched = False
     text_lower = text.casefold()
     for term in topic_terms:
         if term in text_lower:
             signals.append(f"{source_label}:{term}")
+            matched = True
+    return matched
 
 
 def _append_concept_matches(
@@ -119,9 +126,10 @@ def _append_concept_matches(
     signals: list[str],
     concepts: list[object],
     topic_terms: list[str],
-) -> None:
+) -> bool:
     """Append concept-level matches for topic terms."""
 
+    matched = False
     for concept in concepts:
         if not isinstance(concept, dict):
             continue
@@ -132,44 +140,56 @@ def _append_concept_matches(
         for term in topic_terms:
             if term in concept_name_lower:
                 signals.append(f"concept:{concept_name}")
+                matched = True
+    return matched
 
 
 def _extract_topic_signals(
-    work: dict[str, object], topic_terms: list[str]
-) -> list[str]:
+    work: dict[str, object], topic_term_groups: list[list[str]]
+) -> tuple[list[str], bool]:
     """Extract simple topic-match evidence from title/concepts/abstract."""
 
-    if not topic_terms:
-        return []
+    if not topic_term_groups:
+        return ([], True)
 
     signals: list[str] = []
+    matched_topics = 0
     title = str(work.get("display_name", ""))
-    _append_term_matches(
-        signals=signals,
-        source_label="title",
-        text=title,
-        topic_terms=topic_terms,
-    )
-
     concepts = work.get("concepts", [])
-    if isinstance(concepts, list):
-        _append_concept_matches(
-            signals=signals,
-            concepts=concepts,
-            topic_terms=topic_terms,
-        )
-
     abstract = work.get("abstract")
-    if isinstance(abstract, str):
-        _append_term_matches(
+
+    for topic_terms in topic_term_groups:
+        topic_matched = _append_term_matches(
             signals=signals,
-            source_label="abstract",
-            text=abstract,
+            source_label="title",
+            text=title,
             topic_terms=topic_terms,
         )
+        if isinstance(concepts, list):
+            topic_matched = (
+                _append_concept_matches(
+                    signals=signals,
+                    concepts=concepts,
+                    topic_terms=topic_terms,
+                )
+                or topic_matched
+            )
+        if isinstance(abstract, str):
+            topic_matched = (
+                _append_term_matches(
+                    signals=signals,
+                    source_label="abstract",
+                    text=abstract,
+                    topic_terms=topic_terms,
+                )
+                or topic_matched
+            )
+        if topic_matched:
+            matched_topics += 1
 
+    all_topics_matched = matched_topics == len(topic_term_groups)
     deduped = list(dict.fromkeys(signals))
-    return deduped[:8]
+    return (deduped[:8], all_topics_matched)
 
 
 def _build_work_snippet(
@@ -260,6 +280,7 @@ def _upsert_candidate(
     authorship: dict[str, object],
     work_item: WorkSnippet,
     works_per_person: int,
+    require_orcid: bool,
 ) -> None:
     """Create or update a voice candidate from an authorship entry."""
 
@@ -271,16 +292,27 @@ def _upsert_candidate(
     if not author_id:
         return
 
-    candidate = candidates.get(author_id)
+    orcid_value = (
+        author_obj.get("orcid") if isinstance(author_obj.get("orcid"), str) else None
+    )
+    if require_orcid and not orcid_value:
+        return
+
+    candidate_key = orcid_value or author_id
+    candidate = candidates.get(candidate_key)
+    display_name = str(author_obj.get("display_name", "Unknown"))
     if candidate is None:
         candidate = VoiceCandidate(
             author_id=author_id,
-            display_name=str(author_obj.get("display_name", "Unknown")),
-            orcid=author_obj.get("orcid")
-            if isinstance(author_obj.get("orcid"), str)
-            else None,
+            display_name=display_name,
+            orcid=orcid_value,
+            alias_names=[display_name],
         )
-        candidates[author_id] = candidate
+        candidates[candidate_key] = candidate
+    elif display_name not in candidate.alias_names:
+        candidate.alias_names.append(display_name)
+        if len(display_name) > len(candidate.display_name):
+            candidate.display_name = display_name
 
     if len(candidate.works) < works_per_person:
         candidate.works.append(work_item)
@@ -297,15 +329,25 @@ def extract_top_voices(
 
     candidates: dict[str, VoiceCandidate] = {}
     inst_id_short = institution.id.rsplit("/", maxsplit=1)[-1]
-    topic_terms = _topic_terms(options.topics)
+    topic_term_groups = _topic_term_groups(options.topics)
 
     for work in works:
         authorships = work.get("authorships")
         if not isinstance(authorships, list):
             continue
 
-        topic_signals = _extract_topic_signals(work, topic_terms)
-        if options.strict_topic_match and topic_terms and not topic_signals:
+        topic_signals, all_topics_matched = _extract_topic_signals(
+            work,
+            topic_term_groups,
+        )
+        if (
+            options.strict_topic_match
+            and topic_term_groups
+            and (
+                (options.require_all_topics and not all_topics_matched)
+                or (not options.require_all_topics and not topic_signals)
+            )
+        ):
             continue
 
         work_item = _build_work_snippet(work, topic_signals=topic_signals)
@@ -330,6 +372,7 @@ def extract_top_voices(
                 authorship=authorship,
                 work_item=work_item,
                 works_per_person=options.works_per_person,
+                require_orcid=options.require_orcid,
             )
 
     sorted_candidates = sorted(
